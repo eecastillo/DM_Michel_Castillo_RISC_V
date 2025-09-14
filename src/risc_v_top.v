@@ -16,11 +16,11 @@ module risc_v_top (
 );
 
 //Wires to interconnect modules
-wire ALUSrcB, ALUSrcA, MemWrite, pc_src, jalr_o, regWrite, clk, pll_lock;
+wire ALUSrcB, ALUSrcA, MemWrite, pc_src, jalr_o, regWrite, clk, pll_lock, mult_active, mult_done;
 wire [1:0] mem2Reg;
 wire [31:0] pc_prim, pc_out, adr, rd1_data, rd1_data_reg, rd2_data, rd2_data_reg, pc_next, pc_plus_4, pc_target;
 wire [31:0] memory_out, instr2perf, wd3_wire, imm_gen_out; 
-wire [31:0] SrcA, SrcB, alu_result, pc_jal;
+wire [31:0] SrcA, SrcB, alu_result, alu_result_final, pc_jal, mult_result;
 wire [31:0] aluSrcA_2_fwdA, aluSrcB_2_fwdB, fwd_SW_2_wd, instr_stall;
 wire [1:0] ForwardA, ForwardB, ForwardSW;
 wire [2:0] alu_control;
@@ -383,13 +383,32 @@ forward_unit fwd_unit (
 	.forwardSW(ForwardSW)
 );
 
+//Pipelined Multiplier
+pipelined_multiplier #(.LENGTH(32)) pipelined_mult (
+	.i_clk(clk),
+	.i_rst_n(rst_n),
+	.i_alu_Src_A(rd1_data),
+	.i_alu_Src_B(rd2_data),
+	.i_control(alu_operation),
+	.o_alu_result(mult_result),
+	.o_mult_active(mult_active),
+	.o_mult_done(mult_done)
+);
+
+multiplexor_param #(.LENGTH(32)) mult_alu_result (
+	.i_a(alu_result),
+	.i_b(mult_result),
+	.i_selector(mult_done),
+	.out(alu_result_final)
+);
+
 ///////////////////////EXECUTE -> MEM//////////////////////////////////////
 
 //ex_mem_datapath
 //	PC : 31:0
 //	PC_JUMP_TARGET : 63:32
 //	ALU_zero	: 64
-//	Alu_result	: 96:65
+//	Alu_result_f: 96:65
 //	Immediate	: 128:97
 //	rd2: 	160:129	
 //	rd:		165:161
@@ -398,7 +417,7 @@ forward_unit fwd_unit (
 // branch_prediction_target : 205:174
 
 
-wire [205:0] ex_mem_datapath_in = {id_ex_datapath_out[192:161],id_ex_datapath_out[160],id_ex_datapath_out[134:128],id_ex_datapath_out[139:135],fwd_SW_2_wd,id_ex_datapath_out[127:96],alu_result,alu_zero,pc_target,id_ex_datapath_out[31:0]};
+wire [205:0] ex_mem_datapath_in = {id_ex_datapath_out[192:161],id_ex_datapath_out[160],id_ex_datapath_out[134:128],id_ex_datapath_out[139:135],fwd_SW_2_wd,id_ex_datapath_out[127:96],alu_result_final,alu_zero,pc_target,id_ex_datapath_out[31:0]};
 
 ffd_param_clear_n #(.LENGTH(206)) ex_mem_datapath_ffd(
 	//inputs
