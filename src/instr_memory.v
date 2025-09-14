@@ -20,7 +20,7 @@ wire [DATA_WIDTH-1:0] map_Address = (address + (~32'h400_000 + 1'b1)) >> 2'h2;
 //Initial data with program to execute
 initial begin
 	// program
-	$readmemh("../asm/main_program.txt", rom_memory);
+	$readmemh("../asm/multi_simple.txt", rom_memory);
 end
 
 always @(posedge clk)
